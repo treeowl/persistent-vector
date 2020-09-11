@@ -54,6 +54,7 @@ import qualified Data.Foldable as F
 import qualified Data.List as L
 import Data.Semigroup as Sem
 import qualified Data.Traversable as T
+import qualified Data.Functor.Classes as FC
 
 import Data.Vector.Persistent.Array ( Array )
 import qualified Data.Vector.Persistent.Array as A
@@ -86,14 +87,8 @@ data Vector_ a
 instance Eq a => Eq (Vector a) where
   (==) = pvEq
 
-instance Eq a => Eq (Vector_ a) where
-  (==) = pvEq_
-
 instance Ord a => Ord (Vector a) where
   compare = pvCompare
-
-instance Ord a => Ord (Vector_ a) where
-  compare = pvCompare_
 
 instance F.Foldable Vector where
   foldr = foldr
@@ -131,7 +126,7 @@ pvEq _ _ = False
 {-# INLINABLE pvEq_ #-}
 pvEq_ :: Eq a => Vector_ a -> Vector_ a -> Bool
 pvEq_ (DataNode a1) (DataNode a2) = a1 == a2
-pvEq_ (InternalNode a1) (InternalNode a2) = a1 == a2
+pvEq_ (InternalNode a1) (InternalNode a2) = FC.liftEq pvEq_ a1 a2
 pvEq_ _ _ = False
 
 -- | A simple equality implementation for unsliced vectors.  This can
@@ -139,7 +134,7 @@ pvEq_ _ _ = False
 pvSimpleEq :: Eq a => Vector a -> Vector a -> Bool
 pvSimpleEq EmptyVector EmptyVector = True
 pvSimpleEq (RootNode sz1 sh1 _ _ t1 v1) (RootNode sz2 sh2 _ _ t2 v2) =
-  sz1 == sz2 && sh1 == sh2 && t1 == t2 && v1 == v2
+  sz1 == sz2 && sh1 == sh2 && t1 == t2 && FC.liftEq pvEq_ v1 v2
 pvSimpleEq _ _ = False
 
 {-# INLINABLE pvCompare #-}
@@ -156,14 +151,14 @@ pvCompare _ EmptyVector = GT
 {-# INLINABLE pvCompare_ #-}
 pvCompare_ :: Ord a => Vector_ a -> Vector_ a -> Ordering
 pvCompare_ (DataNode a1) (DataNode a2) = compare a1 a2
-pvCompare_ (InternalNode a1) (InternalNode a2) = compare a1 a2
+pvCompare_ (InternalNode a1) (InternalNode a2) = FC.liftCompare pvCompare_ a1 a2
 pvCompare_ (DataNode _) (InternalNode _) = LT
 pvCompare_ (InternalNode _) (DataNode _) = GT
 
 pvSimpleCompare :: Ord a => Vector a -> Vector a -> Ordering
 pvSimpleCompare EmptyVector EmptyVector = EQ
 pvSimpleCompare (RootNode _ _ _ _ t1 v1) (RootNode _ _ _ _ t2 v2) =
-  case compare v1 v2 of
+  case FC.liftCompare pvCompare_ v1 v2 of
     EQ -> compare t1 t2
     o -> o
 pvSimpleCompare EmptyVector _ = LT

@@ -59,6 +59,7 @@ module Data.Vector.Persistent.Array
     ) where
 
 import qualified Data.Traversable as Traversable
+import qualified Data.Functor.Classes as FC
 import qualified Control.Applicative as A
 import Control.DeepSeq
 import Control.Monad.ST hiding (runST)
@@ -100,6 +101,12 @@ instance Show a => Show (Array a) where
 instance Eq a => Eq (Array a) where
   (==) = arrayEq
 
+instance FC.Eq1 Array where
+  liftEq = arrayLiftEq
+
+instance FC.Ord1 Array where
+  liftCompare = arrayLiftCompare
+
 instance Ord a => Ord (Array a) where
   compare = arrayCompare
 
@@ -107,6 +114,11 @@ arrayEq :: (Eq a) => Array a -> Array a -> Bool
 arrayEq a1 a2
   | length a1 /= length a2 = False
   | otherwise = P.foldr (\i a -> a && index a1 i == index a2 i) True [0..(length a1 - 1)]
+
+arrayLiftEq :: (a -> b -> Bool) -> Array a -> Array b -> Bool
+arrayLiftEq eq a1 a2
+  | length a1 /= length a2 = False
+  | otherwise = P.foldr (\i a -> a && (index a1 i `eq` index a2 i)) True [0..(length a1 - 1)]
 
 arrayCompare :: (Ord a) => Array a -> Array a -> Ordering
 arrayCompare a1 a2
@@ -120,6 +132,19 @@ arrayCompare a1 a2
       case ix < 0 of
         True -> EQ
         False -> go (compare (index a1 ix) (index a2 ix)) (ix - 1)
+
+arrayLiftCompare :: (a -> b -> Ordering) -> Array a -> Array b -> Ordering
+arrayLiftCompare cmp a1 a2
+  | length a1 < length a2 = LT
+  | length a1 > length a2 = GT
+  | otherwise = go EQ (length a1)
+  where
+    go GT _ = GT
+    go LT _ = LT
+    go EQ ix =
+      case ix < 0 of
+        True -> EQ
+        False -> go (cmp (index a1 ix) (index a2 ix)) (ix - 1)
 
 #if __GLASGOW_HASKELL__ >= 702
 length :: Array a -> Int
